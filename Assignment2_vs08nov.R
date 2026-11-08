@@ -65,8 +65,6 @@ admis <- dat_admis |> unite("ID", PatientID, AdmissionID, sep = "n", remove = F)
       # in the tutorial: "the output will always have the same rows as x, the data frame you’re joining to"
   # Consequences
     # Joining dat_pts, dat_pts and dat_pts will not create NAs
-    # However, joining dat_lab will create many rows with NAs, because the other 
-    # data frames do not have observations 
     # it will create a long format 
 
 sapply(list(dat_pts, dat_admis, dat_diag, dat_lab), names)
