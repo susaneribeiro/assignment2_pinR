@@ -1,31 +1,38 @@
-# Programming in R Assignment 2 
+# Assignment 2 - part 1 
+# Prof. Rebecca Stelatto 
+# Students: Kyle, Nassi, Susane 
+
 library(tidyverse)
 library(lubridate)
-set.seed(3)
+
 # Information about the dataset ----
   # dat_diag is AdmissionsDiagnosesCorePopulatedTable
   # dat_admis is AdmissionsCorePopulatedTable
   # dat_pts is PatientCorePopulatedTable
   # dat_lab is LabsCorePopulatedTable
 
-# 1: Load the datasets into memory using load. ---- 
+# 01 ----
+# 1: Load the datasets into memory using load. 
 load("MSBBSS04_10k_dataset.RData")
 
 head(dat_lab)
 dim(dat_lab)
 class(dat_lab$LabDateTime) # check if true chronological date-times
 
-# 2. From the lab values dataset, select per patient, admission and LabName ----
+# 02 ----
+# 2. From the lab values dataset, select per patient, admission and LabName 
 # only the last measurement entry. I.e. the row with the latest LabDateTime.
 
-# use max function to select the latest observation 
-# after grouping by patient, admission and labname and select the 
+# Group the three variables that identify onle lab test in one admission 
+# and filter the latest observation 
+# ungroup() so later steps are not applied to groups 
 dat_time <- dat_lab |> 
   group_by(PatientID, AdmissionID, LabName) |>
   filter(LabDateTime == max(LabDateTime)) |>
   ungroup()
 
-# To check whether the code was correct, we can compare the unique before and after 
+# Check: the number of unique combinations of PatientID, AdmissionID, LabName
+# must be the same before and after 
 unique_obs_before <- dat_lab |> 
   select(PatientID, AdmissionID, LabName) |>
   unique() |> 
@@ -35,16 +42,17 @@ unique_obs_after <- nrow(dat_time)
 
 all.equal(unique_obs_before, unique_obs_after)
 
-# 3. Part 1: Unite PatientID and AdmissionID into one ID variable ----
+# 03 ----
+# 3. Part 1: Unite PatientID and AdmissionID into one ID variable 
 # don’t drop the PatientID and AdmissionID yet. 
 
 admis <- dat_admis |> unite("ID", PatientID, AdmissionID, sep = "n", remove = F)
 
-# 3. Part 2: Merge the four datasets using a join function. ----
+# 3. Part 2: Merge the four datasets using a join function.
 
 # PSEUDOCODE for joining datasets 
 # Ref.: Using the steps from this tutorial: https://r4ds.hadley.nz/joins.html 
-# Step 1: Find (primary or compound) keys to join -----
+# Step 1: Find (primary or compound) keys to join 
   # Definition of keys:
       # Keys are combinations of variables that make each row unique. We want to 
       # join "unique rows" from one data frame with the "unique row" of another by their keys.   
@@ -110,8 +118,7 @@ sapply(list(dat_pts, dat_admis, dat_diag, dat_lab), dim)
   # the data frame has a format long 
   
   sapply(list(dat_pts, admis, dat_diag, semicomplete, dat_time, complete), nrow)
-
-
+# 04 ----
 # 4. Construct the outcome: identify patients with “malignant neoplasm” in their primary diagnosis. Give
 # them the value 1 or “case”, where the variable name is simply “outcome”. The value 0 or “control” is
 # for all other patients.
@@ -123,9 +130,9 @@ sapply(list(dat_pts, dat_admis, dat_diag, dat_lab), dim)
   # it assigns 1 to the new variable outcome. Otherwise, it assigns 0. 
   data1 <- complete |> 
     mutate(outcome = ifelse(str_detect(str_to_lower(PrimaryDiagnosisDescription), "malignant neoplasm"), 1, 0))
-View(data1)
   dim(data1)
   
+# 05 ----
 # 5. You may notice that patients may have several admissions, so this data is in a long format. We will
 # take the easy way out and only retain data from the first admission. Filter the rows accordingly, you
 # may use something like AdmissionID == 1.
@@ -137,7 +144,7 @@ data2 <- data1 |>
 data1 |> select(PatientID, AdmissionID) |> unique() |> nrow() 
 data2 |> select(PatientID, AdmissionID) |> unique() |> nrow() # this combination went back to the number in dat_pts 
 
-
+# 06 ----
 # 6. You may notice that the data are still in long format (with duplicate IDs): each patient has multiple lab
 # values measured. Convert these measurements to a wide format, giving each LabName its own column.
 # In the names of these columns, change all spaces and forward slashes to an underscore and remove all
@@ -148,14 +155,14 @@ clean_names <- function(x) {
   x |>
     gsub(pattern = " ", replacement = "_") |> 
     gsub(pattern = ":", replacement = "") |> 
-    gsub(pattern = "/", replacement = "_") # I changed it to forward slash as I still see them in data4.
+    gsub(pattern = "/", replacement = "_") 
 }
 
 # lets clean the names of column LabName: 
 data3 <- data2 |> 
   mutate(LabName = clean_names(LabName))
 head(data3$LabName)
-unique(data3$LabName) #check for forward slash.
+unique(data3$LabName) #check if names are tidy
 
 # finally, we perform the pivot wider using the names from LabName and the values from LabValue
 # the result is a dataset with a column per exame, so we can see all the exams that each
@@ -167,9 +174,9 @@ data4 <- data3 |>
     names_from = LabName,
     values_from = LabValue
   )
-View(data4)
 
 
+# 07 ----
 # 7. Calculate the patient age in years and length of stay (LOS). The length of stay is defined as
 # the duration from admission start to end in days. You may use lubridate::interval and
 # lubridate::dyears/ddays, e.g. something like LOS = interval(start date, end date)/ddays(1)
@@ -189,7 +196,7 @@ data5 |>
   select(PatientDateOfBirth, AdmissionStartDate, age, AdmissionEndDate, LOS) |>
   tail(5) # Looks reasonable to me...
 
-
+# 08 ----
 # 8. Create a new dataset with all unnecessary variables removed, only keep those relevant to the analysis
 # described in the next points.
 
@@ -214,6 +221,7 @@ data8 <- data5 |>
 dim(data8)
 sum(complete.cases(data8))
 
+# 09 ----
 # 9. Report descriptive analyses (mean, median, SD, IQR, min, max, boxplots) on and test whether there is
 # a difference in age between cases and controls. Do the same for LOS.
 
@@ -238,11 +246,40 @@ table9 <- data8 |>
 print(table9, width = Inf)
 
 # 9.2. Hypothesis tests
-t.test(age ~ outcome_f, data = data8) # Normality assumption. Watchout for the outliers.
-wilcox.test(age ~ outcome_f, data = data8) # Why? No assumption on normality, and rank-sum dampens the outliers pulls.
+
+t.test(age ~ outcome_f, data = data8) 
+wilcox.test(age ~ outcome_f, data = data8) 
+# H0: no difference in age between controls and cases 
+# H1: there is a difference in age between controls and cases 
+
+# Age: 
+# Controls: mean 23.08 (SD 2.87), median 23.1 (IQR 4.91), range 18.0-28.0.
+# Cases: mean 23.18 (SD 2.81), median 23.1 (IQR 4.87), range 18.0-28.0.
+
+# Welch t-test: p = 0.205; mean difference -0.10 years, 95% CI [-0.26, 0.06].
+# Wilcoxon: p = 0.222. 
+# Both t.test (p = 0.2054) and wilcox.test (p = 0.2221) have p > 0.05, so 
+# the null hypothesis cannot be rejected for age. We can say that
+# there is no statistically significant difference in age between Cases and Controls.
+
+# The t-test is appropriate given the large sample size. The Wilcoxon rank-sum
+# test is reported as a robustness check and leads to the same conclusion.
+
 
 t.test(LOS ~ outcome_f, data = data8)
 wilcox.test(LOS ~ outcome_f, data = data8)
+# H0: no difference in LOS between controls and cases 
+# H1: there is a difference in LOS between controls and cases 
+
+# LOS: 
+# Controls: mean 10.93 (SD 5.18), median 10.9 (IQR 9.00), range 2.01-20.0.
+# Cases: mean 10.87 (SD 5.25), median 10.8 (IQR 8.98), range 2.06-20.0.
+
+# Welch t-test: p = 0.663; mean difference (Control - Case) = 0.07 days,
+# 95% CI [-0.23, 0.36]. Wilcoxon rank-sum test: p = 0.655.
+# Both tests have p > 0.05, so the null hypothesis cannot be rejected: there is
+# no evidence of a difference in LOS between cases and controls, and any
+# difference is small (the CI excludes differences larger than about 0.4 days).
 
 # 9.3. Side-by-side boxplots
 par(mfrow = c(1, 2))
@@ -253,34 +290,41 @@ boxplot(LOS ~ outcome_f, data = data8,
         main = "Length of Stay by Outcome", xlab = "", ylab = "LOS (days)",
         col = c("lightblue", "salmon"))
 par(mfrow = c(1, 1))
-# Why salmon and ocean blue? Because we talked about the salmon farming industry at Wednesday's Post-Exam beer.
 
-
+# 10 ----
 # 10. Report a table with counts of cases and controls across the sex categories and race categories. Perform
 # tests on differences in counts (hint: first use table()).
 
 # Gender vs. Outcome
 tab_sex <- table(Sex = data8$PatientGender, Outcome = data8$outcome_f)
 tab_sex
-round(prop.table(tab_sex, margin = 2) * 100, 1) #See the table in a different view (It sums up to 100% by rows and columns)
-chisq.test(tab_sex) # We want to know if the proportion of cases and controls differs significantly across Sex category.
+round(prop.table(tab_sex, margin = 2) * 100, 1) # proportion of sex distribution within each group (control x case)
+round(prop.table(tab_sex, margin = 1) * 100, 1) # proportion of cases and controls within each sex
 
-# Null hypothesis H_0:patient sex and diagnosis outcome (case vs. control) are statistically independent.
-# In other words, H_0 is claiming that the proportion of patients with confirmed case is identical across sex categories, and any small difference in the sample is due to random chance.
-# p_value = 0.7491 > 0.05, we fail to reject the H_0. The cases and controls proportions do not differ by sex category.
+# H0: patient sex and diagnosis outcome (case vs. control) are statistically independent.
+# H1: patient sex and outcome are associated
+# In other words, H_0 is claiming that the proportion of patients with confirmed 
+# case is identical across sex categories, and any small difference in the sample 
+# is due to random chance.
+chisq.test(tab_sex) # We want to know if the proportion of cases and controls differs significantly across Sex category.
+# p_value = 0.7491 > 0.05, we fail to reject the H_0. 
+# There is no evidence of an association between sex and outcome. 
 
 
 # Race vs. Outcome
 tab_race <- table(Race = data8$PatientRace, Outcome = data8$outcome_f)
 tab_race
-round(prop.table(tab_race, margin = 2) * 100, 1) # 2 means splitting by columns
+round(prop.table(tab_race, margin = 2) * 100, 1) # proportion of race distribution within each group (control x case)
+round(prop.table(tab_race, margin = 1) * 100, 1)# proportion of cases and controls within each sex
+
+
+# H0: patient race and diagnosis outcome (case vs. control) are independent.
+# H1: patient race and outcome are associated
 chisq.test(tab_race) # We want to know if the proportion of cases and controls differs significantly across Race category.
 
-# Null hypothesis H_0:patient Race and diagnosis outcome (case vs. control) are statistically independent.
-# In other words, H_0 is claiming that the proportion of patients with confirmed case is identical across Race categories, and any small difference in the sample is due to random chance.
 # p_value = 0.1033 > 0.05, we fail to reject the H_0. The cases and controls proportions do not differ by race category.
-# I didn't set seed here, so the p-values might be different when run by others.
 
+# 11 ----
 # 11. Make boxplots of the lab values comparing cases and controls. Put the boxplots in one figure.
 
 # Task 11: Boxplots of lab values comparing cases and controls
@@ -320,6 +364,7 @@ plot11
 
 ggsave("plot11_lab_boxplots.png", plot = plot11, width = 14, height = 15, dpi = 300)
 
+# 12 ----
 # 12. Using words, describe any remarkable patterns in the dataset in terms of normality of the distribution,
 # skewness, missingness, rare categories, outliers.
 
@@ -357,13 +402,23 @@ round(prop.table(table(data8$PatientGender, useNA = "ifany")) * 100, 1)
 round(prop.table(table(data8$PatientRace, useNA = "ifany")) * 100, 1)
 sum(complete.cases(data8))
 
+hist(data8$age) # looks like a uniform distribution 
+hist(data8$LOS) # looks like a uniform distribution 
+qqnorm(data8$age)
+qqline(data8$age)
+qqnorm(data8$LOS)
+qqline(data8$LOS)
+
 # Comments:
 # 12.1. Normality, Skewness, and one stand-out variable
-## From earlier step, we already discovered that None of the continuous variables follow a normal bell curve.
-## We can see this from both age (18.0 to 28.0 years; mean = 23.1, median = 23.1, skewness = -0.03) and length of stay (LOS: 2.01 to 20.0 days; mean = 10.9, median = 10.9, skewness = 0.03) follow non-normal distributions
-
-## Here in the table12, we see that all these varying lab tests have almost identical means and medians. The skewness bounded around -0.15 and 0.04.
-
+## Means and medians are almost identical, which is a sign of symmetry.
+## This works for age (18.0 to 28.0 years; mean = 23.1, median = 23.1,
+## skewness = -0.03) and length of stay (LOS: 2.01 to 20.0 days; mean = 10.9,
+## median = 10.9, skewness = 0.03). However, symmetry does not imply normality. 
+## The histograms of age and LOS are close to a uniform distribution,
+## and the QQ-plots of age and LOS have an S shape,
+## so age and LOS are not normally distributed.
+## In the table12, we see that all these varying lab tests have almost identical means and medians. The skewness bounded around -0.15 and 0.04.
 ## URINALYSIS_SPECIFIC_GRAVITY stands out: all 9,988 non-missing values equal 1.0 (mean = 1, median = 1, skewness = NaN).
 
 # 12.2. Missingness
@@ -384,8 +439,7 @@ sum(complete.cases(data8))
 # 12.4 4. Outliers:
 ## All 37 continuous variables (age, LOS, and all 35 lab tests) have 0 IQR-based outliers (see n_outliers in table12 and plot11). 
 
-
-
+# 13 ----
 # 13. Perform the appropriate regression (linear, logistic, Cox, etc.) to investigate the association between
 # the outcome (case/control) and the lab values, corrected for age, gender, and LOS. Which variables are
 # found to be significantly
@@ -402,8 +456,11 @@ data13 <- data8 |>
 
 model13 <- glm(outcome ~ ., data = data13, family = binomial(link = "logit"))
 
+length(coef(model13)) # 41: 1 intercept + 40 regression coefficients
+
 # Verify sample size used in complete-case regression (should match 9,662 from Task 12)
 nobs(model13)
+sum(complete.cases(data8))
 
 # Build summary table of Log-Odds, Odds Ratios (OR), 95% CIs, and p-values
 ci13 <- confint.default(model13)
@@ -429,16 +486,23 @@ print(sig13, n = Inf, width = Inf)
 
 # Findings:
 # 1. Model Specification & Sample Size:
-## A multivariable logistic regression model (model13) was fitted on data13 to predict cases (outcome = 1) across predictors (lab tests, age, LOS, PatientGender, and PatientRace).
+## A multivariable logistic regression model (model13) predicted case status (outcome = 1)
+## using predictors: lab values (34), age, LOS, gender, race (3), with 
+## 9,662 patients with complete data. 
 
-## PatientID, outcome_f (duplicate factor), and URINALYSIS_SPECIFIC_GRAVITY (see table12 row 35) were excluded prior to fitting.
+# 2. Results 
+## Two of the 40 coefficients were significant at 5%: 
+## - URINALYSIS_PH               (OR = 1.08, 95% CI [1.01, 1.16], p = 0.0226)
+## - URINALYSIS_RED_BLOOD_CELLS  (OR = 1.06 , 95% CI [1.00, 1.12], p = 0.0446)
+## However, since 40 coefficients were tested, we can expect 40 x 0.05 = 2 to be
+## significant by chance. 
+## Additionally, the effects of the significant tests were small (OR of 1.08 and 1.06)
+## and the p-values are close to .05. 
+## Therefore, we cannot interpret the significance of the coefficients as evidence
+## of an association with malignant neoplasm. 
 
-# 2. Statistically Significant Predictors (p < 0.05; see sig13):
-## URINALYSIS_PH: Odds Ratio = 1.08 (95% CI: 1.01-1.16, p = 0.0226). Holding all other variables constant, each 1-unit increase in urine pH is associated with an 8% increase in the odds of malignant neoplasm.
-
-## URINALYSIS_RED_BLOOD_CELLS: Odds Ratio = 1.06 ((95% CI: 1.00–1.12, p = 0.0446). Holding all other variables constant, each 1-unit increase in urinalysis red blood cell count is associated with a 6% increase in the odds of malignant neoplasm.
-
-# 3. Age, Gender, and LOS:
-## Consistent with bivariate tests in Tasks 9 and 10, age (OR = 1.01, p = 0.240), LOS (OR = 1.00, p = 0.648), PatientGender (Male vs. Female: OR = 0.99, p = 0.926), and
-## PatientRace (White p = 0.152, Asian p = 0.663, Unknown p = 0.799 vs. African American) are not significantly associated with cases after adjustment.
+# 3. Age, Gender, LOS and race:
+## Age (OR = 1.01, p = 0.240), LOS (OR = 1.00, p = 0.648) and gender 
+## (Male vs. Female: OR = 0.99, p = 0.926) were not associated with the outcome. 
+## Race was not associated either (White p = 0.152, Asian p = 0.663, Unknown p = 0.799, vs. African American).
 
