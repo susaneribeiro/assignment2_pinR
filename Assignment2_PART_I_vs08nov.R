@@ -18,7 +18,7 @@ dim(dat_lab)
 
 # use max function to select the latest observation 
 # after grouping by patient, admission and labname and select the 
-dat_time <- dat_lab |> 
+dat_time<- dat_lab |> 
   group_by(PatientID, AdmissionID, LabName) |>
   filter(LabDateTime == max(LabDateTime)) |>
   ungroup()
@@ -29,7 +29,7 @@ unique_obs_before <- dat_lab |>
   unique() |> 
   nrow()
 
-unique_obs_after <- nrow(select_time)
+unique_obs_after <- nrow(dat_time)
 
 all.equal(unique_obs_before, unique_obs_after)
 
@@ -146,7 +146,8 @@ clean_names <- function(x) {
   x |>
     gsub(pattern = " ", replacement = "_") |> 
     gsub(pattern = ":", replacement = "") |> 
-    gsub(pattern = "-", replacement = "_")
+    gsub(pattern = "-", replacement = "_")|>
+    gsub(pattern = "/", replacement = "_")
 }
 
 # lets clean the names of column LabName: 
@@ -158,20 +159,65 @@ head(data3$LabName)
 # the result is a dataset with a column per exame, so we can see all the exams that each
 # patient has 
 
-data4 <- pivot_wider(data3,
-  names_from = LabName,
-  values_from = LabValue
-)
-View(data4)
+data4 <- data3 |> 
+  select(-LabUnits, -LabDateTime) |> # remove units and dates/times so each patient gets only 1 row
+  pivot_wider(
+    names_from = LabName,
+    values_from = LabValue
+  )
 
 
 # 7. Calculate the patient age in years and length of stay (LOS). The length of stay is defined as
 # the duration from admission start to end in days. You may use lubridate::interval and
 # lubridate::dyears/ddays, e.g. something like LOS = interval(start date, end date)/ddays(1)
 # to get a numeric value for the number of days.
+
+
+# PSEUDOCODE for calculating patient age in years and length of stay (LOS)
+
+# Step 1: We first check the format of date variables 
+
+# Step 2: We calculate patient age at admission
+#We use a time interval from birth date to admission start date using interval() to get a numeric value
+
+# Step 3: We calculate length of stay (LOS)
+# We use a time interval from admission start date to admission end date using interval() to get a numeric value
+
+# Step 4: We use summary() to check for negative values, NAs, or unrealistic numbers
+
+data5 <- data4 |> 
+  mutate(
+    age = interval(PatientDateOfBirth, AdmissionStartDate) / dyears(1), # age at admission in years
+    LOS = interval(AdmissionStartDate, AdmissionEndDate) / ddays(1)     # length of hospital stay in days
+  )
+
+summary(data5$age)
+summary(data5$LOS)
+
+
+
+
 # 8. Create a new dataset with all unnecessary variables removed, only keep those relevant to the analysis
 # described in the next points.
-# 1
+
+# PSEUDOCODE for selecting relevant variables
+# Step 1: We see that for the next points we will need the following variables: age, LOS, race(PatientRace), gender (PatientGender), lab values, We also keep ID
+
+
+# Step 2: # We use select() to keep only the necessary variables
+
+relev_var <- data5 |> 
+  select(
+    ID, outcome, age, LOS, PatientGender, PatientRace,
+    CBC_ABSOLUTE_NEUTROPHILS:URINALYSIS_SPECIFIC_GRAVITY # select all columns from the first lab test to the last one
+  )
+
+dim(relev_var)
+
+
+
+
+
 # 9. Report descriptive analyses (mean, median, SD, IQR, min, max, boxplots) on and test whether there is
 # a difference in age between cases and controls. Do the same for LOS.
 # 10. Report a table with counts of cases and controls across the sex categories and race categories. Perform
